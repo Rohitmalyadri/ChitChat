@@ -98,3 +98,7 @@ export const updateProfit = async ()=>{
         res.json({success: false, message: error.message});
     }
 }
+
+export const checkAuth = (req, res) => {
+    res.json({ success: true, user: req.user });
+}
