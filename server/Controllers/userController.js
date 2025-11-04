@@ -75,7 +75,6 @@ export const login = async (res, res) =>{
         })
     }
 }
-    
 
 // Controller to update user profile details
 export const updateProfit = async ()=>{

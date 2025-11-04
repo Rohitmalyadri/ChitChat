@@ -36,11 +36,11 @@ export const getMessages = async (req, res) => {
             $or: [
                 { senderId: myId, receiverId: selectedUserId },
                 { senderId: selectedUserId, receiverId: myId }
-            ]
-        })
+            ],
+        });
 
         await Message.updateMany({senderId: selectedUserId, receiverId: myId}, {seen: true});
-
+        res.json({ success: true, messages});
 
     } catch (error) {
         console.log(error.message);
@@ -78,7 +78,7 @@ export const sendMessage = async (req, res) => {
             senderId,
             receiverId,
             text,
-            image: imageUrl
+            image: imageUrl,
         })
 
         //emit the new message to the receiver's socket
