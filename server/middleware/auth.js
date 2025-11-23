@@ -1,29 +1,32 @@
-import User from "../models/User.js";
-import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken"
+import User from "../models/User.js"
 
 
-//Middleware to protect routes
-export const protectRoute = (req, res, next)=>{
+// Middleware to protect routes
+
+
+export const protectRoute = async (req, res, next) => {
     try {
-        const token = req.headers.token;
+        const token = req.headers.token
 
-        if(!token){
-            return res.json({success: false, message: "Token must be provided"})
+        if (!token) {
+            return res.json({success:false,message:"Token must be provided"})
         }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        const decoded = jwt.verify(token, process.env.JWT_SECRET)
 
         const user = await User.findById(decoded.userId).select("-password")
 
         if(!user){
-            return res.json({ success: false, message: "user not found" });
+            return res.json({success:false,message:"User not Found"})
         }
 
-        req.user = user;
-        next();
+        req.user = user
+        next()
+
 
     } catch (error) {
-        console.log(error.message);
-        res.json({ success: false, message: error.message });
+        console.log(error.message)
+        res.json({success:false,message:error.message})
     }
-}
+} 
