@@ -1,6 +1,7 @@
 import cloudinary from "../lib/cloudinary.js"
 import { generateToken } from "../lib/utils.js"
-import User from "../models/User.js"
+import supabase from "../lib/db.js"
+import { formatUser } from "../lib/formatHelpers.js"
 import bcrypt from "bcryptjs"
 import {io} from "../server.js"
 
@@ -11,7 +12,14 @@ export const signup = async (req,res) => {
         if (!fullName || !email || !password || !bio) {
             return res.json({success:false,message:"Missing Details"})
         }
-        const user = await User.findOne({ email })
+        
+        const { data: user, error: findError } = await supabase
+            .from("users")
+            .select("*")
+            .eq("email", email)
+            .maybeSingle()
+        
+        if (findError) throw findError
         
         if (user) {
             return res.json({success:false,message:"Account Already Exists"})
@@ -21,19 +29,27 @@ export const signup = async (req,res) => {
 
         const hashedPassword = await bcrypt.hash(password, salt)
         
-        const newUser = await User.create({
-            fullName,email,password:hashedPassword,bio
-        })
+        const { data: newUser, error: createError } = await supabase
+            .from("users")
+            .insert([{
+                full_name: fullName,
+                email,
+                password: hashedPassword,
+                bio
+            }])
+            .select()
+            .single()
 
-        const token = generateToken(newUser._id)
+        if (createError) throw createError
 
-        res.json({success:true,userData:newUser,token,message:"Account created Successfully"})
-        
+        const formattedUser = formatUser(newUser)
+        const token = generateToken(formattedUser._id)
+
+        res.json({success:true,userData:formattedUser,token,message:"Account created Successfully"})
         
     } catch (error) {
         console.log(error.message)
         res.json({success:false,message:error.message})
-        
     }
 }
 
@@ -43,23 +59,33 @@ export const signup = async (req,res) => {
 export const login = async(req, res) => {
     try {
         const { email, password } = req.body;
-        const userData = await User.findOne({ email })
         
-        const isPasswordCorrect = await bcrypt.compare(password, userData.password)
+        const { data: user, error: findError } = await supabase
+            .from("users")
+            .select("*")
+            .eq("email", email)
+            .maybeSingle()
+
+        if (findError) throw findError
+        
+        if (!user) {
+            return res.json({success:false,message:"Invalid Credentials"})
+        }
+        
+        const isPasswordCorrect = await bcrypt.compare(password, user.password)
         
         if (!isPasswordCorrect) {
             return res.json({success:false,message:"Invalid Credentials"})
         }
 
-        const token = generateToken(userData._id)
+        const formattedUser = formatUser(user)
+        const token = generateToken(formattedUser._id)
 
-        res.json({success:true,userData,token,message:"Account login Successfully"})
+        res.json({success:true,userData:formattedUser,token,message:"Account login Successfully"})
 
     } catch (error) {
-
         console.log(error.message)
         res.json({success:false,message:error.message})
-
     }
 }
 
@@ -72,29 +98,30 @@ export const checkAuth = (req, res) => {
 // Controller to update user profile details
 
 export const updateProfile = async (req, res) => {
-    
     try {
         const { profilePic, bio, fullName } = req.body
         const userId = req.user._id
 
-        let updatedUser
+        const updateData = { bio, full_name: fullName }
 
-        if (!profilePic) {
-            updatedUser = await User.findByIdAndUpdate(userId,{bio,fullName},{new:true})
-        }
-        else {
+        if (profilePic) {
             const upload = await cloudinary.uploader.upload(profilePic)
-
-            updatedUser = await User.findByIdAndUpdate(userId,{profilePic : upload.secure_url,bio,fullName},{new:true})
+            updateData.profile_pic = upload.secure_url
         }
 
-        res.json({success:true,user:updatedUser})
+        const { data: updatedUser, error: updateError } = await supabase
+            .from("users")
+            .update(updateData)
+            .eq("id", userId)
+            .select()
+            .single()
+
+        if (updateError) throw updateError
+
+        res.json({success:true,user:formatUser(updatedUser)})
         
     } catch (error) {
-        
         console.log(error.message)
-
         res.json({success:false,message:error.message})
-        
     }
 } 

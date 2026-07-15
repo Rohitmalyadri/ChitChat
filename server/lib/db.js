@@ -1,12 +1,15 @@
-import mongoose from "mongoose";
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export const connectDB = async () => {
-    try {
-        mongoose.connection.on('connected', ()=> console.log('Database Connected'));
-        await mongoose.connect(`${process.env.MONGODB_URI}/chitchat`);
-    } catch (error) {
-        console.log(error);
-        
-    }
+    console.log("Supabase client initialized successfully.");
+};
 
-}
+export default supabase;
