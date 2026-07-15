@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS messages (
 
 -- chat_requests table
 CREATE TABLE IF NOT EXISTS chat_requests (
+    UNIQUE (sender_id, receiver_id),
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -38,11 +39,13 @@ CREATE TABLE IF NOT EXISTS chat_requests (
 -- Disable Row Level Security (RLS) so the backend can read/write freely (matches MongoDB behavior)
 ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_requests DISABLE ROW LEVEL SECURITY;
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON messages(sender_id, receiver_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver_seen ON messages(receiver_id) WHERE seen = false;
+CREATE INDEX IF NOT EXISTS idx_chat_requests_receiver_id_status ON chat_requests(receiver_id, status);
 
 -- Trigger to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -63,5 +66,11 @@ CREATE TRIGGER update_users_updated_at
 DROP TRIGGER IF EXISTS update_messages_updated_at ON messages;
 CREATE TRIGGER update_messages_updated_at
     BEFORE UPDATE ON messages
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_chat_requests_updated_at ON chat_requests;
+CREATE TRIGGER update_chat_requests_updated_at
+    BEFORE UPDATE ON chat_requests
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
