@@ -4,6 +4,10 @@ import { formatMessageTime } from "../lib/utils";
 import { ChatContext } from "../../context/ChatContext";
 import { AuthContext } from "../../context/AuthContext";
 import toast from "react-hot-toast";
+import Avatar from "./ui/Avatar";
+import Badge from "./ui/Badge";
+import EmptyState from "./ui/EmptyState";
+import MediaLightbox from "./ui/MediaLightbox";
 
 const ChatContainer = () => {
   const {
@@ -21,6 +25,9 @@ const ChatContainer = () => {
   const { authUser, onlineUsers } = useContext(AuthContext);
 
   const [input, setInput] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [activeLightboxImg, setActiveLightboxImg] = useState(null);
 
   const scrollEnd = useRef();
 
@@ -31,31 +38,43 @@ const ChatContainer = () => {
     }
   };
 
-  // handle sending a message
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (input.trim() === "") {
-      return null;
-    }
-    await sendMessage({ text: input.trim() });
-    setInput("");
-  };
-
-  // Handle sending an image
-  const handleSendImage = async (e) => {
+  // Handle selecting an image
+  const handleSelectImage = (e) => {
     const file = e.target.files[0];
     if (!file || !file.type.startsWith("image/")) {
-      toast.error("Select an image file");
+      toast.error("Please select a valid image file");
       return;
     }
-
+    setSelectedImage(file);
     const reader = new FileReader();
-    reader.onloadend = async () => {
-      await sendMessage({ image: reader.result });
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
     };
-
     reader.readAsDataURL(file);
     e.target.value = "";
+  };
+
+  // Cancel image preview
+  const handleCancelImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  // handle sending a message
+  const handleSendMessage = async (e) => {
+    if (e) e.preventDefault();
+    if (!input.trim() && !imagePreview) {
+      return null;
+    }
+
+    if (imagePreview) {
+      await sendMessage({ text: input.trim(), image: imagePreview });
+      handleCancelImage();
+      setInput("");
+    } else {
+      await sendMessage({ text: input.trim() });
+      setInput("");
+    }
   };
 
   useEffect(() => {
@@ -70,38 +89,44 @@ const ChatContainer = () => {
     }
   }, [messages]);
 
+  const isOnline = selectedUser && onlineUsers.includes(selectedUser._id);
+
   return selectedUser ? (
-    <div className="h-full flex flex-col relative">
+    <div className="h-full flex flex-col relative bg-slate-900/10">
+      {/* Lightbox Modal for Shared Images */}
+      <MediaLightbox src={activeLightboxImg} onClose={() => setActiveLightboxImg(null)} />
+
       {/* Header */}
-      <div className="flex items-center gap-4 px-6 py-4 border-b border-white/10 bg-slate-900/30 backdrop-blur-md z-10">
-        <div className="relative">
-          <img
-            src={selectedUser.profilePic || assets.avatar_icon}
-            alt="Profile Picture"
-            className="w-10 h-10 rounded-full object-cover ring-2 ring-violet-500/30"
-          />
-          {onlineUsers.includes(selectedUser._id) && (
-            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#0f172a] rounded-full"></span>
-          )}
-        </div>
-        <div className="flex-1">
-          <h3 className="text-white font-medium text-lg leading-tight">
+      <div className="flex items-center gap-4 px-6 py-4 border-b border-white/10 bg-slate-900/40 backdrop-blur-xl z-10">
+        <button
+          onClick={() => setSelectedUser(null)}
+          className="md:hidden p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
+        >
+          ←
+        </button>
+
+        <Avatar src={selectedUser.profilePic} name={selectedUser.fullName} isOnline={isOnline} size="md" />
+
+        <div className="flex-1 min-w-0">
+          <h3 className="text-white font-bold text-base leading-snug truncate">
             {selectedUser.fullName}
           </h3>
-          <p className="text-xs text-gray-400">
-            {onlineUsers.includes(selectedUser._id) ? "Active now" : "Offline"}
+          <p className="text-xs text-gray-400 flex items-center gap-1.5">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                isOnline ? "bg-emerald-400" : "bg-slate-600"
+              }`}
+            />
+            {isOnline ? "Active now" : "Offline"}
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setSelectedUser(null)}
-            className="md:hidden p-2 hover:bg-white/10 rounded-full transition-colors"
-          >
-            <img src={assets.arrow_icon} alt="Back" className="w-5 invert" />
-          </button>
-          <button className="max-md:hidden p-2 hover:bg-white/10 rounded-full transition-colors">
-            <img src={assets.help_icon} className="w-5 opacity-70" alt="Help" />
-          </button>
+
+        <div className="flex items-center gap-2">
+          {requestStatus === "accepted" && (
+            <Badge variant="emerald" size="sm" className="hidden sm:inline-flex">
+              Connected
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -109,128 +134,179 @@ const ChatContainer = () => {
       {requestStatus === "accepted" ? (
         <>
           {/* Chat Messages Area */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
-            {messages.map((msg, index) => (
-              <div
-                key={index}
-                className={`flex items-end gap-3 ${
-                  msg.senderId === authUser._id ? "justify-end" : "justify-start"
-                }`}
-              >
-                {msg.senderId !== authUser._id && (
-                  <img
-                    src={selectedUser?.profilePic || assets.avatar_icon}
-                    className="w-8 h-8 rounded-full object-cover mb-1"
-                    alt="User"
-                  />
-                )}
-
-                <div
-                  className={`flex flex-col max-w-[70%] ${
-                    msg.senderId === authUser._id ? "items-end" : "items-start"
-                  }`}
-                >
-                  {msg.image ? (
-                    <div className="rounded-2xl overflow-hidden border border-white/10 shadow-lg">
-                      <img
-                        src={msg.image}
-                        className="max-w-full max-h-[300px] object-cover"
-                        alt="Shared"
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+            {messages.length === 0 ? (
+              <EmptyState
+                title={`Say hello to ${selectedUser.fullName}`}
+                description="Your conversation is ready. Send a text or photo to start messaging!"
+                className="my-auto border-none bg-transparent"
+              />
+            ) : (
+              messages.map((msg, index) => {
+                const isMe = msg.senderId === authUser._id;
+                return (
+                  <div
+                    key={msg._id || index}
+                    className={`flex items-end gap-2.5 ${
+                      isMe ? "justify-end" : "justify-start"
+                    } animate-fade-in`}
+                  >
+                    {!isMe && (
+                      <Avatar
+                        src={selectedUser?.profilePic}
+                        name={selectedUser?.fullName}
+                        size="sm"
+                        className="mb-1"
                       />
-                    </div>
-                  ) : (
+                    )}
+
                     <div
-                      className={`px-4 py-2.5 rounded-2xl shadow-md backdrop-blur-sm text-[15px] leading-relaxed break-words ${
-                        msg.senderId === authUser._id
-                          ? "bg-violet-600 text-white rounded-br-none"
-                          : "bg-slate-800/80 text-gray-100 rounded-bl-none border border-white/5"
+                      className={`flex flex-col max-w-[75%] sm:max-w-[65%] ${
+                        isMe ? "items-end" : "items-start"
                       }`}
                     >
-                      {msg.text}
-                    </div>
-                  )}
-                  <span className="text-[10px] text-gray-500 mt-1 px-1">
-                    {formatMessageTime(msg.createdAt)}
-                  </span>
-                </div>
+                      {msg.image ? (
+                        <div
+                          onClick={() => setActiveLightboxImg(msg.image)}
+                          className="rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer hover:opacity-95 transition-opacity"
+                        >
+                          <img
+                            src={msg.image}
+                            className="max-w-full max-h-[280px] object-cover rounded-2xl"
+                            alt="Shared media"
+                          />
+                        </div>
+                      ) : null}
 
-                {msg.senderId === authUser._id && (
-                  <img
-                    src={authUser?.profilePic || assets.avatar_icon}
-                    className="w-8 h-8 rounded-full object-cover mb-1"
-                    alt="Me"
-                  />
-                )}
-              </div>
-            ))}
+                      {msg.text ? (
+                        <div
+                          className={`px-4 py-2.5 rounded-2xl shadow-md text-sm leading-relaxed break-words ${
+                            isMe
+                              ? "btn-primary text-white rounded-br-none"
+                              : "glass-panel text-gray-100 rounded-bl-none border border-white/10"
+                          }`}
+                        >
+                          {msg.text}
+                        </div>
+                      ) : null}
+
+                      <span className="text-[10px] text-gray-400 mt-1 px-1 font-medium">
+                        {formatMessageTime(msg.createdAt)}
+                      </span>
+                    </div>
+
+                    {isMe && (
+                      <Avatar
+                        src={authUser?.profilePic}
+                        name={authUser?.fullName}
+                        size="sm"
+                        className="mb-1"
+                      />
+                    )}
+                  </div>
+                );
+              })
+            )}
             <div ref={scrollEnd}></div>
           </div>
 
-          {/* Input Area */}
-          <div className="p-4 bg-slate-900/30 backdrop-blur-md border-t border-white/10">
-            <div className="flex items-center gap-3 max-w-4xl mx-auto">
-              <div className="flex-1 flex items-center bg-slate-800/50 border border-white/10 rounded-full px-4 py-1.5 focus-within:border-violet-500/50 focus-within:ring-1 focus-within:ring-violet-500/20 transition-all">
+          {/* Input & Image Preview Area */}
+          <div className="p-4 bg-slate-900/50 backdrop-blur-xl border-t border-white/10">
+            {/* Image Upload Preview Overlay */}
+            {imagePreview && (
+              <div className="mb-3 p-2 bg-slate-800/80 rounded-2xl border border-white/10 flex items-center justify-between gap-3 max-w-4xl mx-auto animate-fade-in">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="w-12 h-12 rounded-xl object-cover border border-white/10"
+                  />
+                  <span className="text-xs text-gray-300 font-medium truncate">
+                    Image attached
+                  </span>
+                </div>
+                <button
+                  onClick={handleCancelImage}
+                  className="p-1.5 bg-slate-700 hover:bg-slate-600 text-gray-300 hover:text-white rounded-full transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <form
+              onSubmit={handleSendMessage}
+              className="flex items-center gap-3 max-w-4xl mx-auto"
+            >
+              <div className="flex-1 flex items-center glass-input rounded-full px-4 py-1.5 focus-within:ring-2 focus-within:ring-violet-500/30 transition-all">
                 <input
                   onChange={(e) => setInput(e.target.value)}
                   value={input}
-                  onKeyDown={(e) => (e.key === "Enter" ? handleSendMessage(e) : null)}
                   type="text"
                   placeholder="Type a message..."
-                  className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-400 py-2 text-sm"
+                  className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-500 py-2 text-sm"
                 />
+
                 <input
-                  onChange={handleSendImage}
+                  onChange={handleSelectImage}
                   type="file"
-                  id="image"
-                  accept="image/png,image/jpeg"
+                  id="image-input"
+                  accept="image/png,image/jpeg,image/webp"
                   hidden
                 />
                 <label
-                  htmlFor="image"
-                  className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors ml-1"
+                  htmlFor="image-input"
+                  className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors text-gray-400 hover:text-violet-400"
+                  title="Attach photo"
                 >
-                  <img
-                    src={assets.gallery_icon}
-                    className="w-5 opacity-70 hover:opacity-100 transition-opacity"
-                    alt="Gallery"
-                  />
+                  🖼️
                 </label>
               </div>
+
               <button
-                onClick={handleSendMessage}
-                className="p-3 bg-violet-600 hover:bg-violet-700 rounded-full shadow-lg shadow-violet-600/20 transition-all active:scale-95 group"
+                type="submit"
+                disabled={!input.trim() && !imagePreview}
+                className="p-3.5 btn-primary rounded-full shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
                 <img
                   src={assets.send_button}
-                  className="w-5 invert group-hover:scale-110 transition-transform"
+                  className="w-4 h-4 invert"
                   alt="Send"
                 />
               </button>
-            </div>
+            </form>
           </div>
         </>
       ) : (
-        /* Request Card Banner */
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/10">
-          <div className="max-w-md p-8 glass-panel rounded-3xl border border-white/10 flex flex-col items-center gap-4 shadow-2xl">
-            <img
-              src={selectedUser.profilePic || assets.avatar_icon}
-              alt={selectedUser.fullName}
-              className="w-20 h-20 rounded-full object-cover ring-4 ring-violet-500/30 shadow-lg"
+        /* Request Card Banner View */
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <div className="max-w-md w-full p-8 glass-panel rounded-3xl border border-white/10 flex flex-col items-center gap-5 shadow-2xl animate-fade-in">
+            <Avatar
+              src={selectedUser.profilePic}
+              name={selectedUser.fullName}
+              isOnline={isOnline}
+              size="xl"
             />
-            <h3 className="text-xl font-bold text-white">{selectedUser.fullName}</h3>
-            {selectedUser.bio && (
-              <p className="text-xs text-gray-400 max-w-xs">{selectedUser.bio}</p>
-            )}
+
+            <div>
+              <h3 className="text-xl font-bold text-white mb-1">
+                {selectedUser.fullName}
+              </h3>
+              {selectedUser.bio && (
+                <p className="text-xs text-gray-400 max-w-xs leading-relaxed">
+                  {selectedUser.bio}
+                </p>
+              )}
+            </div>
 
             {requestStatus === "none" && (
-              <div className="w-full mt-2 flex flex-col gap-3">
+              <div className="w-full pt-2 flex flex-col gap-3">
                 <p className="text-xs text-gray-400">
-                  You need to send a chat request before you can exchange messages with {selectedUser.fullName}.
+                  Send a chat request to connect and start exchanging messages.
                 </p>
                 <button
                   onClick={handleRequestToChat}
-                  className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-violet-600/30 transition-all active:scale-95"
+                  className="w-full py-3.5 btn-primary font-bold text-xs rounded-xl shadow-lg transition-all active:scale-95"
                 >
                   Send Chat Request
                 </button>
@@ -238,31 +314,31 @@ const ChatContainer = () => {
             )}
 
             {requestStatus === "pending_sent" && (
-              <div className="w-full mt-2 flex flex-col items-center gap-2">
-                <div className="px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-xs font-semibold">
+              <div className="w-full pt-2 flex flex-col items-center gap-2">
+                <Badge variant="amber" size="lg" className="w-full py-2.5">
                   ⏳ Chat Request Pending
-                </div>
-                <p className="text-xs text-gray-400">
+                </Badge>
+                <p className="text-xs text-gray-400 mt-1">
                   Waiting for {selectedUser.fullName} to accept your request.
                 </p>
               </div>
             )}
 
             {requestStatus === "pending_received" && (
-              <div className="w-full mt-2 flex flex-col gap-3">
+              <div className="w-full pt-2 flex flex-col gap-3">
                 <p className="text-xs text-gray-300">
-                  {selectedUser.fullName} sent you a chat request to connect.
+                  {selectedUser.fullName} wants to start a conversation with you.
                 </p>
                 <div className="flex gap-3 w-full">
                   <button
                     onClick={() => acceptChatRequest(currentRequestId)}
-                    className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+                    className="flex-1 py-3 btn-primary text-xs font-bold rounded-xl shadow-md transition-all active:scale-95"
                   >
                     Accept Request
                   </button>
                   <button
                     onClick={() => rejectChatRequest(currentRequestId)}
-                    className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs font-bold rounded-xl transition-all"
+                    className="py-3 px-5 btn-secondary text-xs font-bold rounded-xl transition-all"
                   >
                     Decline
                   </button>
@@ -271,13 +347,13 @@ const ChatContainer = () => {
             )}
 
             {requestStatus === "rejected" && (
-              <div className="w-full mt-2 flex flex-col gap-3">
-                <div className="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs font-semibold">
+              <div className="w-full pt-2 flex flex-col gap-3">
+                <Badge variant="red" size="lg" className="w-full py-2.5">
                   Request Declined
-                </div>
+                </Badge>
                 <button
                   onClick={handleRequestToChat}
-                  className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-violet-600/30 transition-all active:scale-95"
+                  className="w-full py-3.5 btn-primary font-bold text-xs rounded-xl shadow-lg transition-all active:scale-95"
                 >
                   Send Request Again
                 </button>
@@ -288,14 +364,12 @@ const ChatContainer = () => {
       )}
     </div>
   ) : (
-    <div className="h-full flex flex-col items-center justify-center gap-4 text-center p-8 bg-slate-900/20 backdrop-blur-sm">
-      <div className="w-24 h-24 bg-violet-600/10 rounded-full flex items-center justify-center mb-2 animate-pulse">
-        <img src={assets.logo_icon} className="w-12 opacity-80" alt="Logo" />
-      </div>
-      <h2 className="text-3xl font-bold text-white">Welcome to ChitChat</h2>
-      <p className="text-gray-400 max-w-md">
-        Select a chat from the sidebar to start messaging your friends and family.
-      </p>
+    <div className="h-full flex flex-col items-center justify-center p-8">
+      <EmptyState
+        title="Welcome to ChitChat"
+        description="Select a conversation from the sidebar or check pending requests to start messaging."
+        className="my-auto border-none bg-transparent"
+      />
     </div>
   );
 };
