@@ -98,6 +98,22 @@ export const sendMessage = async (req, res) => {
     const receiverId = req.params.id;
     const senderId = req.user._id;
 
+    // Verify that a chat request exists with status = 'accepted'
+    const { data: requestRecord, error: reqErr } = await supabase
+      .from("chat_requests")
+      .select("status")
+      .or(`and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`)
+      .maybeSingle();
+
+    if (reqErr) throw reqErr;
+
+    if (!requestRecord || requestRecord.status !== "accepted") {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot send a message until the chat request is accepted",
+      });
+    }
+
     let imageUrl;
     if (image) {
       const uploadResponse = await cloudinary.uploader.upload(image);
@@ -130,14 +146,4 @@ export const sendMessage = async (req, res) => {
     console.log(error.message);
     res.json({ success: false, message: error.message });
   }
-
-  // Can start messaging after request is accepted from other user
-  /* export const requestToChat = async (req, res) => {
-    try {
-      
-    } catch {
-      
-    }
-  }*/
-
 };

@@ -33,3 +33,21 @@ export const formatMessage = (msg) => {
     updatedAt: msg.updated_at,
   };
 };
+
+/**
+ * Helper to map PostgreSQL chat_request records to JavaScript camelCase object structure.
+ */
+export const formatRequest = (reqObj) => {
+  if (!reqObj) return null;
+  return {
+    _id: reqObj.id,
+    id: reqObj.id,
+    senderId: reqObj.sender_id,
+    receiverId: reqObj.receiver_id,
+    sender: reqObj.sender ? formatUser(reqObj.sender) : undefined,
+    receiver: reqObj.receiver ? formatUser(reqObj.receiver) : undefined,
+    status: reqObj.status,
+    createdAt: reqObj.created_at,
+    updatedAt: reqObj.updated_at,
+  };
+};

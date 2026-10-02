@@ -27,14 +27,20 @@ CREATE TABLE IF NOT EXISTS messages (
 
 -- chat_requests table
 CREATE TABLE IF NOT EXISTS chat_requests (
-    UNIQUE (sender_id, receiver_id),
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    status VARCHAR(20) DEFAULT 'pending' NOT NULL, -- pending, accepted, rejected
+    status VARCHAR(20) DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (sender_id, receiver_id)
 );
+
+-- Auto-create accepted chat requests for any users who already have existing message history
+INSERT INTO chat_requests (sender_id, receiver_id, status)
+SELECT DISTINCT sender_id, receiver_id, 'accepted'
+FROM messages
+ON CONFLICT (sender_id, receiver_id) DO NOTHING;
 
 -- Disable Row Level Security (RLS) so the backend can read/write freely (matches MongoDB behavior)
 ALTER TABLE users DISABLE ROW LEVEL SECURITY;

@@ -6,60 +6,67 @@ import { AuthContext } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
 const ChatContainer = () => {
+  const {
+    messages,
+    selectedUser,
+    setSelectedUser,
+    sendMessage,
+    getMessages,
+    requestStatus,
+    currentRequestId,
+    sendChatRequest,
+    acceptChatRequest,
+    rejectChatRequest,
+  } = useContext(ChatContext);
+  const { authUser, onlineUsers } = useContext(AuthContext);
 
-  const { messages, selectedUser, setSelectedUser, sendMessage, getMessages } = useContext(ChatContext)
-  const { authUser, onlineUsers } = useContext(AuthContext)
-
-  const [input, setInput] = useState("")
+  const [input, setInput] = useState("");
 
   const scrollEnd = useRef();
 
-  // Request to send first message, If a person is new and connecting new person he need to send request to him first, after getting accept message they can continue messaging
+  // Request to send first message
   const handleRequestToChat = async () => {
-    
-  }
+    if (selectedUser) {
+      await sendChatRequest(selectedUser._id);
+    }
+  };
 
   // handle sending a message
   const handleSendMessage = async (e) => {
-    e.preventDefault()
-    if (input.trim() === " ") {
-      return null
+    e.preventDefault();
+    if (input.trim() === "") {
+      return null;
     }
-    await sendMessage({ text: input.trim() })
-    setInput("")
-  }
-
+    await sendMessage({ text: input.trim() });
+    setInput("");
+  };
 
   // Handle sending an image
   const handleSendImage = async (e) => {
-    const file = e.target.files[0]
+    const file = e.target.files[0];
     if (!file || !file.type.startsWith("image/")) {
-      toast.error("Select an image file")
-      return
+      toast.error("Select an image file");
+      return;
     }
 
-    const reader = new FileReader
+    const reader = new FileReader();
     reader.onloadend = async () => {
-      await sendMessage({ image: reader.result })
-    }
+      await sendMessage({ image: reader.result });
+    };
 
-    reader.readAsDataURL(file)
-    e.target.value = ""
-  }
-
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
 
   useEffect(() => {
-    if (selectedUser) {
-      getMessages(selectedUser._id)
+    if (selectedUser && requestStatus === "accepted") {
+      getMessages(selectedUser._id);
     }
-  }, [selectedUser])
-
-
-
+  }, [selectedUser, requestStatus]);
 
   useEffect(() => {
     if (scrollEnd.current && messages) {
-      scrollEnd.current.scrollIntoView({ behaviour: "smooth" });
+      scrollEnd.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
@@ -68,19 +75,28 @@ const ChatContainer = () => {
       {/* Header */}
       <div className="flex items-center gap-4 px-6 py-4 border-b border-white/10 bg-slate-900/30 backdrop-blur-md z-10">
         <div className="relative">
-          <img src={selectedUser.profilePic || assets.avatar_icon} alt="Profile Picture" className="w-10 h-10 rounded-full object-cover ring-2 ring-violet-500/30" />
-          {onlineUsers.includes(selectedUser._id) && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#0f172a] rounded-full"></span>}
+          <img
+            src={selectedUser.profilePic || assets.avatar_icon}
+            alt="Profile Picture"
+            className="w-10 h-10 rounded-full object-cover ring-2 ring-violet-500/30"
+          />
+          {onlineUsers.includes(selectedUser._id) && (
+            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#0f172a] rounded-full"></span>
+          )}
         </div>
         <div className="flex-1">
           <h3 className="text-white font-medium text-lg leading-tight">
             {selectedUser.fullName}
           </h3>
           <p className="text-xs text-gray-400">
-            {onlineUsers.includes(selectedUser._id) ? 'Active now' : 'Offline'}
+            {onlineUsers.includes(selectedUser._id) ? "Active now" : "Offline"}
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={() => setSelectedUser(null)} className="md:hidden p-2 hover:bg-white/10 rounded-full transition-colors">
+          <button
+            onClick={() => setSelectedUser(null)}
+            className="md:hidden p-2 hover:bg-white/10 rounded-full transition-colors"
+          >
             <img src={assets.arrow_icon} alt="Back" className="w-5 invert" />
           </button>
           <button className="max-md:hidden p-2 hover:bg-white/10 rounded-full transition-colors">
@@ -89,80 +105,187 @@ const ChatContainer = () => {
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`flex items-end gap-3 ${msg.senderId === authUser._id ? "justify-end" : "justify-start"
-              }`}
-          >
-            {msg.senderId !== authUser._id && (
-              <img
-                src={selectedUser?.profilePic || assets.avatar_icon}
-                className="w-8 h-8 rounded-full object-cover mb-1"
-                alt="User"
-              />
-            )}
+      {/* Main Area: Conditionally render Chat vs Request Banners */}
+      {requestStatus === "accepted" ? (
+        <>
+          {/* Chat Messages Area */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+            {messages.map((msg, index) => (
+              <div
+                key={index}
+                className={`flex items-end gap-3 ${
+                  msg.senderId === authUser._id ? "justify-end" : "justify-start"
+                }`}
+              >
+                {msg.senderId !== authUser._id && (
+                  <img
+                    src={selectedUser?.profilePic || assets.avatar_icon}
+                    className="w-8 h-8 rounded-full object-cover mb-1"
+                    alt="User"
+                  />
+                )}
 
-            <div className={`flex flex-col max-w-[70%] ${msg.senderId === authUser._id ? "items-end" : "items-start"}`}>
-              {msg.image ? (
-                <div className="rounded-2xl overflow-hidden border border-white/10 shadow-lg">
-                  <img src={msg.image} className="max-w-full max-h-[300px] object-cover" alt="Shared" />
-                </div>
-              ) : (
                 <div
-                  className={`px-4 py-2.5 rounded-2xl shadow-md backdrop-blur-sm text-[15px] leading-relaxed break-words ${msg.senderId === authUser._id
-                      ? "bg-violet-600 text-white rounded-br-none"
-                      : "bg-slate-800/80 text-gray-100 rounded-bl-none border border-white/5"
-                    }`}
+                  className={`flex flex-col max-w-[70%] ${
+                    msg.senderId === authUser._id ? "items-end" : "items-start"
+                  }`}
                 >
-                  {msg.text}
+                  {msg.image ? (
+                    <div className="rounded-2xl overflow-hidden border border-white/10 shadow-lg">
+                      <img
+                        src={msg.image}
+                        className="max-w-full max-h-[300px] object-cover"
+                        alt="Shared"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className={`px-4 py-2.5 rounded-2xl shadow-md backdrop-blur-sm text-[15px] leading-relaxed break-words ${
+                        msg.senderId === authUser._id
+                          ? "bg-violet-600 text-white rounded-br-none"
+                          : "bg-slate-800/80 text-gray-100 rounded-bl-none border border-white/5"
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                  )}
+                  <span className="text-[10px] text-gray-500 mt-1 px-1">
+                    {formatMessageTime(msg.createdAt)}
+                  </span>
                 </div>
-              )}
-              <span className="text-[10px] text-gray-500 mt-1 px-1">
-                {formatMessageTime(msg.createdAt)}
-              </span>
-            </div>
 
-            {msg.senderId === authUser._id && (
-              <img
-                src={authUser?.profilePic || assets.avatar_icon}
-                className="w-8 h-8 rounded-full object-cover mb-1"
-                alt="Me"
-              />
+                {msg.senderId === authUser._id && (
+                  <img
+                    src={authUser?.profilePic || assets.avatar_icon}
+                    className="w-8 h-8 rounded-full object-cover mb-1"
+                    alt="Me"
+                  />
+                )}
+              </div>
+            ))}
+            <div ref={scrollEnd}></div>
+          </div>
+
+          {/* Input Area */}
+          <div className="p-4 bg-slate-900/30 backdrop-blur-md border-t border-white/10">
+            <div className="flex items-center gap-3 max-w-4xl mx-auto">
+              <div className="flex-1 flex items-center bg-slate-800/50 border border-white/10 rounded-full px-4 py-1.5 focus-within:border-violet-500/50 focus-within:ring-1 focus-within:ring-violet-500/20 transition-all">
+                <input
+                  onChange={(e) => setInput(e.target.value)}
+                  value={input}
+                  onKeyDown={(e) => (e.key === "Enter" ? handleSendMessage(e) : null)}
+                  type="text"
+                  placeholder="Type a message..."
+                  className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-400 py-2 text-sm"
+                />
+                <input
+                  onChange={handleSendImage}
+                  type="file"
+                  id="image"
+                  accept="image/png,image/jpeg"
+                  hidden
+                />
+                <label
+                  htmlFor="image"
+                  className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors ml-1"
+                >
+                  <img
+                    src={assets.gallery_icon}
+                    className="w-5 opacity-70 hover:opacity-100 transition-opacity"
+                    alt="Gallery"
+                  />
+                </label>
+              </div>
+              <button
+                onClick={handleSendMessage}
+                className="p-3 bg-violet-600 hover:bg-violet-700 rounded-full shadow-lg shadow-violet-600/20 transition-all active:scale-95 group"
+              >
+                <img
+                  src={assets.send_button}
+                  className="w-5 invert group-hover:scale-110 transition-transform"
+                  alt="Send"
+                />
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Request Card Banner */
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/10">
+          <div className="max-w-md p-8 glass-panel rounded-3xl border border-white/10 flex flex-col items-center gap-4 shadow-2xl">
+            <img
+              src={selectedUser.profilePic || assets.avatar_icon}
+              alt={selectedUser.fullName}
+              className="w-20 h-20 rounded-full object-cover ring-4 ring-violet-500/30 shadow-lg"
+            />
+            <h3 className="text-xl font-bold text-white">{selectedUser.fullName}</h3>
+            {selectedUser.bio && (
+              <p className="text-xs text-gray-400 max-w-xs">{selectedUser.bio}</p>
+            )}
+
+            {requestStatus === "none" && (
+              <div className="w-full mt-2 flex flex-col gap-3">
+                <p className="text-xs text-gray-400">
+                  You need to send a chat request before you can exchange messages with {selectedUser.fullName}.
+                </p>
+                <button
+                  onClick={handleRequestToChat}
+                  className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-violet-600/30 transition-all active:scale-95"
+                >
+                  Send Chat Request
+                </button>
+              </div>
+            )}
+
+            {requestStatus === "pending_sent" && (
+              <div className="w-full mt-2 flex flex-col items-center gap-2">
+                <div className="px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-xs font-semibold">
+                  ⏳ Chat Request Pending
+                </div>
+                <p className="text-xs text-gray-400">
+                  Waiting for {selectedUser.fullName} to accept your request.
+                </p>
+              </div>
+            )}
+
+            {requestStatus === "pending_received" && (
+              <div className="w-full mt-2 flex flex-col gap-3">
+                <p className="text-xs text-gray-300">
+                  {selectedUser.fullName} sent you a chat request to connect.
+                </p>
+                <div className="flex gap-3 w-full">
+                  <button
+                    onClick={() => acceptChatRequest(currentRequestId)}
+                    className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+                  >
+                    Accept Request
+                  </button>
+                  <button
+                    onClick={() => rejectChatRequest(currentRequestId)}
+                    className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs font-bold rounded-xl transition-all"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {requestStatus === "rejected" && (
+              <div className="w-full mt-2 flex flex-col gap-3">
+                <div className="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs font-semibold">
+                  Request Declined
+                </div>
+                <button
+                  onClick={handleRequestToChat}
+                  className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm rounded-xl shadow-lg shadow-violet-600/30 transition-all active:scale-95"
+                >
+                  Send Request Again
+                </button>
+              </div>
             )}
           </div>
-        ))}
-        <div ref={scrollEnd}></div>
-      </div>
-
-
-      {/* Input Area */}
-      <div className="p-4 bg-slate-900/30 backdrop-blur-md border-t border-white/10">
-        <div className="flex items-center gap-3 max-w-4xl mx-auto">
-          <div className="flex-1 flex items-center bg-slate-800/50 border border-white/10 rounded-full px-4 py-1.5 focus-within:border-violet-500/50 focus-within:ring-1 focus-within:ring-violet-500/20 transition-all">
-            <input
-              onChange={(e) => setInput(e.target.value)}
-              value={input}
-              onKeyDown={(e) => e.key === "Enter" ? handleSendMessage(e) : null}
-              type="text"
-              placeholder="Type a message..."
-              className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-400 py-2 text-sm"
-            />
-            <input onChange={handleSendImage} type="file" id="image" accept="image/png,image/jpeg" hidden />
-            <label htmlFor="image" className="p-2 hover:bg-white/10 rounded-full cursor-pointer transition-colors ml-1">
-              <img src={assets.gallery_icon} className="w-5 opacity-70 hover:opacity-100 transition-opacity" alt="Gallery" />
-            </label>
-          </div>
-          <button
-            onClick={handleSendMessage}
-            className="p-3 bg-violet-600 hover:bg-violet-700 rounded-full shadow-lg shadow-violet-600/20 transition-all active:scale-95 group"
-          >
-            <img src={assets.send_button} className="w-5 invert group-hover:scale-110 transition-transform" alt="Send" />
-          </button>
         </div>
-      </div>
+      )}
     </div>
   ) : (
     <div className="h-full flex flex-col items-center justify-center gap-4 text-center p-8 bg-slate-900/20 backdrop-blur-sm">
