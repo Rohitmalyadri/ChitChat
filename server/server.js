@@ -45,6 +45,7 @@ app.use(cors());
 
 // Route setup
 
+app.get("/", (req, res) => res.json({ status: "ok", message: "ChitChat Backend API is live" }));
 app.use("/api/status", (req, res) => res.send("Server is live"));
 app.use("/api/auth", userRouter);
 app.use("/api/messages", messageRouter);
