@@ -46,7 +46,18 @@ app.use(cors());
 // Route setup
 
 app.get("/", (req, res) => res.json({ status: "ok", message: "ChitChat Backend API is live" }));
-app.use("/api/status", (req, res) => res.send("Server is live"));
+app.get("/api/status", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "Server is live",
+    env: {
+      hasSupabaseUrl: Boolean(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL),
+      hasSupabaseKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY),
+      hasJwtSecret: Boolean(process.env.JWT_SECRET),
+      hasCloudinary: Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
+    }
+  });
+});
 app.use("/api/auth", userRouter);
 app.use("/api/messages", messageRouter);
 app.use("/api/requests", requestRouter);

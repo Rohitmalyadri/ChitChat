@@ -3,7 +3,7 @@ import axios from "axios"
 import toast from "react-hot-toast"
 import {io} from "socket.io-client"
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL
+const backendUrl = import.meta.env.VITE_BACKEND_URL || "https://chit-chat-backend-sage.vercel.app"
 axios.defaults.baseURL = backendUrl
 
 export const AuthContext = createContext()
@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
     // Check to see if user is authenticated and if so connect the socket and set the user data
     const checkAuth = async () => {
         try {
-            const data = await axios.get("/api/auth/check")
+            const { data } = await axios.get("/api/auth/check")
 
             if (data.success) {
                 setAuthUser(data.user)
@@ -97,8 +97,8 @@ export const AuthProvider = ({ children }) => {
         const newSocket = io(backendUrl, {
             query: {
                 userId: userData._id,
-
-            }
+            },
+            transports: ["websocket"],
         })
         newSocket.connect()
         setSocket(newSocket)
