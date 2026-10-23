@@ -50,7 +50,7 @@ app.use("/api/auth", userRouter);
 app.use("/api/messages", messageRouter);
 app.use("/api/requests", requestRouter);
 
-// Connect to MongoDB
+// Initialize Supabase DB client
 await connectDB();
 
 if (process.env.NODE_ENV !== "production") {
@@ -58,5 +58,5 @@ if (process.env.NODE_ENV !== "production") {
   server.listen(PORT, ()=> console.log("Server is running on PORT:" + PORT));
 }
 
-// Exporting server for vercel
-export default server;
+// Export Express app for Vercel serverless function
+export default app;
